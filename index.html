@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChatGPT TTS Chatbot</title>
+  <style>
+    body {
+      max-width: 12cm;
+      margin: 0 auto;
+      font-family: sans-serif;
+    }
+    h1 {
+      text-align: center;
+    }
+    .chat-container {
+      border: 1px solid #ccc;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .messages {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      background: #f9f9f9;
+    }
+    .message {
+      margin: 5px 0;
+    }
+    .user-message {
+      text-align: right;
+    }
+    .bot-message {
+      text-align: left;
+    }
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>ChatGPT TTS Chatbot</h1>
+  <div class="chat-container">
+    <div class="messages" id="messages"></div>
+    <input type="text" id="userInput" placeholder="Type your message here..." />
+    <button id="sendMessage">Send</button>
+  </div>
+
+  <script src="node_modules/sam-js/dist/samjs.js"></script>
+  <script>
+    const API_KEY = "";
+    const API_URL = "https://api.openai.com/v1/chat/completions";
+    const opts = { debug: 1, pitch: 64, speed: 72, mouth: 128, throat: 128 };
+
+    let speechQueue = [];
+    let isProcessingQueue = false;
+
+    // Process speech queue one chunk at a time
+    const processSpeechQueue = async () => {
+      if (isProcessingQueue) return; // Prevent overlapping processing
+      isProcessingQueue = true;
+
+      while (speechQueue.length > 0) {
+        const { chunk, addToChat } = speechQueue.shift();
+
+        // Add the chunk to the chat interface if required
+        if (addToChat) addMessage(chunk, false);
+
+        console.log(`Speaking chunk: "${chunk}"`);
+        try {
+          await speakText(chunk); // Wait until current chunk is fully spoken
+        } catch (error) {
+          console.error("Error during speech:", error);
+        }
+      }
+
+      isProcessingQueue = false;
+    };
+
+    // Text-to-Speech function
+    const speakText = (text) => {
+      return new Promise((resolve, reject) => {
+        const speech = new SamJs(opts).speak(text);
+        speech
+          .then(() => resolve()) // Resolve after speaking completes
+          .catch((err) => {
+            console.error("Error speaking:", err);
+            reject(err);
+          });
+      });
+    };
+
+    // Split text into clean chunks
+    const splitIntoChunks = (text, chunkSize = 60) => {
+      // Replace line breaks with spaces and clean up the text
+      text = text.replace(/\n/g, " ").trim();
+
+      const chunks = [];
+      let start = 0;
+
+      while (start < text.length) {
+        let end = start + chunkSize;
+
+        // Adjust end if it cuts in the middle of a word or punctuation
+        if (end < text.length && /\w/.test(text[end])) {
+          const lastValidSplit = Math.max(
+            text.lastIndexOf(" ", end),
+            text.lastIndexOf(".", end),
+            text.lastIndexOf("!", end),
+            text.lastIndexOf("?", end)
+          );
+
+          if (lastValidSplit !== -1) {
+            end = lastValidSplit + 1; // Include trailing space or punctuation
+          }
+        }
+
+        const chunk = text.substring(start, end).trim();
+        if (chunk) chunks.push(chunk);
+        start = end; // Move the start index
+      }
+
+      return chunks;
+    };
+
+    // Function to type and speak text
+    const typeAndSpeak = async (message) => {
+      const chunks = splitIntoChunks(message);
+
+      console.log("Message split into chunks:", chunks);
+
+      for (const chunk of chunks) {
+        speechQueue.push({ chunk, addToChat: true });
+      }
+
+      processSpeechQueue(); // Start processing the queue
+    };
+
+    // Add a message to the chat display
+    const addMessage = (message, isUser) => {
+      const messagesDiv = document.getElementById("messages");
+      const messageDiv = document.createElement("div");
+      messageDiv.className = `message ${isUser ? "user-message" : "bot-message"}`;
+      messageDiv.innerText = message;
+      messagesDiv.appendChild(messageDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    };
+
+    // Get ChatGPT response
+    const getChatGPTResponse = async (userMessage) => {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: userMessage }],
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error.message || "Failed to get a response from ChatGPT.");
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    };
+
+    // Event listener for sending a message
+    document.getElementById("sendMessage").addEventListener("click", async () => {
+      const userInput = document.getElementById("userInput");
+      const userMessage = userInput.value.trim();
+
+      if (!userMessage) return;
+
+      addMessage(userMessage, true);
+      userInput.value = "";
+
+      try {
+        const botResponse = await getChatGPTResponse(userMessage);
+        await typeAndSpeak(botResponse); // Type and speak the response
+      } catch (error) {
+        addMessage("Error: " + error.message, false);
+      }
+    });
+  </script>
+</body>
+</html>

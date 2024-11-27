@@ -1,0 +1,11 @@
+{
+  "name": "SAMGPT",
+  "version": "1.0.0",
+  "description": "C64 SAM combined with ChatGPT",
+  "main": "index.js",
+  "author": "<<_knight_rider_>>",
+  "license": "GPL",
+  "dependencies": {
+    "sam-js": "^0.3.1"
+  }
+}

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>SAM: Software Automatic Mouth</title>
+  <style>
+    body {
+      max-width: 12cm;
+      margin: 0 auto;
+      font-family: sans-serif;
+      box-sizing: content-box;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    label, input {
+      display: inline-block;
+    }
+    label { width: 30%}
+    input { width: 60%}
+    input[type="button"] { width: 49%; }
+    input[type="range"] { transform: rotate(180deg);}
+    table{width: 100%}
+    tr th {text-align: left}
+    a {
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+<h1> SAM Software Automatic Mouth</h1>
+<h2>What is SAM?</h2>
+<p>
+Sam is a very small Text-To-Speech (TTS) program written in Javascript,
+that runs on most popular platforms. It is an adaption to Javascript of
+the speech software SAM (Software Automatic Mouth) for the Commodore
+C64 published in the year 1982 by Don't Ask Software
+(now SoftVoice, Inc.). It includes a Text-To-Phoneme converter called
+reciter and a Phoneme-To-Speech routine for the final output.
+</p>
+<p>
+Currently compatible with Firefox, Chrome, Safari + iOS.
+The conversion was done by hand from the C source code by
+<a href="https://github.com/s-macke/SAM">Sebastian Macke</a>,
+and the refactored versions by
+<a href="https://github.com/vidarh/SAM">Vidar Hokstad</a> and
+<a href="https://github.com/8BitPimp/SAM">8BitPimp</a>
+</p>
+<script src="dist/samjs.js"></script>
+<script>
+  const opts = {debug: 1, pitch: 64, speed: 72, mouth: 128, throat: 128};
+  const presets = {
+    sam:               {speed: 72, pitch: 64, throat: 128, mouth: 128},
+    elf:               {speed: 72, pitch: 64, throat: 110, mouth: 160},
+    little_robot:      {speed: 92, pitch: 60, throat: 190, mouth: 190},
+    stuffy_guy:        {speed: 82, pitch: 72, throat: 110, mouth: 105},
+    little_old_lady:   {speed: 82, pitch: 32, throat: 145, mouth: 145},
+    extra_terrestrial: {speed: 100, pitch: 64, throat: 150, mouth: 200},
+  };
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const input = document.getElementById('speechinput');
+    const controls = {};
+
+    const setOpt = (name, value) => {
+      opts[name] = value;
+      controls[name].value = value;
+      document.getElementById(name + '-lbl').innerText = name.charAt(0).toUpperCase() + name.substring(1) + ': ' + value;
+    };
+    ['speed', 'pitch', 'mouth', 'throat'].forEach(
+      (name) => {
+        const e = document.getElementById(name);
+        controls[name] = e;
+        e.onchange = function (e) {
+          setOpt(e.target.id, e.target.value);
+
+        };
+        e.value = opts[name];
+      }
+    );
+    const selectPreset = (name) => {
+      const values = presets[name];
+      ['speed', 'pitch', 'mouth', 'throat'].forEach((name) => {
+        setOpt(name, values[name]);
+      });
+    };
+    selectPreset('sam');
+    Object.keys(presets).forEach((preset) => {
+      document.getElementById('preset_' + preset).addEventListener('click', () => selectPreset(preset));
+    });
+
+    let speech;
+    document.getElementById('say').addEventListener('click', function (e) {
+      e.preventDefault();
+      if (speech) {
+        speech.abort();
+      }
+      speech = (new SamJs(opts)).speak(input.value);
+      speech.catch(() => {});
+    });
+    document.getElementById('download').addEventListener('click', function (e) {
+      e.preventDefault();
+      (new SamJs(opts)).download(input.value);
+    });
+  });
+</script>
+
+<hr>
+<form>
+  <h2>Speak</h2>
+  <div>
+    <label for="speechinput">Text to speak:</label>
+    <input size="60" id="speechinput" name="textfield" value="Hello, my name is SAM.">
+  <hr>
+    <label id="pitch-lbl" for="pitch">Pitch:   </label><input type="range" id="pitch" min="0" max="255" value="0" />
+    <label id="speed-lbl" for="speed">Speed:   </label><input type="range" id="speed" min="1" max="255" value="0" />
+    <label id="mouth-lbl" for="mouth">Mouth:   </label><input type="range" id="mouth" min="0" max="255" value="0" />
+    <label id="throat-lbl" for="throat">Throat: </label><input type="range" id="throat" min="0" max="255" value="0" />
+    <input type="button" id="say" value="Say">
+    <input type="button" id="download" value="Download">
+  </div>
+  <hr>
+  <h2>Presets</h2>
+  <table>
+    <thead>
+      <tr><th>Description</th><th>Speed</th><th>Pitch</th><th>Throat</th><th>Mouth</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><a id="preset_sam">SAM</a></td><td>72</td><td>64</td><td>128</td><td>128</td></tr>
+      <tr><td><a id="preset_elf">Elf</a></td><td>72</td><td>64</td><td>110</td><td>160</td></tr>
+      <tr><td><a id="preset_little_robot">Little Robot</a></td><td>92</td><td>60</td><td>190</td><td>190</td></tr>
+      <tr><td><a id="preset_stuffy_guy">Stuffy Guy</a></td><td>82</td><td>72</td><td>110</td><td>105</td></tr>
+      <tr><td><a id="preset_little_old_lady">Little Old Lady</a></td><td>82</td><td>32</td><td>145</td><td>145</td></tr>
+      <tr><td><a id="preset_extra_terrestrial">Extra-Terrestrial</a></td><td>100</td><td>64</td><td>150</td><td>200</td></tr>
+    </tbody>
+  </table>
+</form>
+<hr>
+
+<a href="https://github.com/discordier/sam">Github Repository with the source code</a>
+</body>
+</html>
