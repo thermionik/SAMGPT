@@ -3,51 +3,123 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ChatGPT TTS Chatbot</title>
+<link rel="preload" href="fonts/FixedsysExcelsiorIIIb.woff2" as="font" type="font/woff2" crossorigin>
+  <title>SAMGPT TTS Chatbot</title>
   <style>
-    body {
-      max-width: 12cm;
-      margin: 0 auto;
-      font-family: sans-serif;
+    @font-face {
+      font-family: 'Fixedsys Excelsior 3.01';
+      src: url('fonts/FixedsysExcelsiorIIIb.eot');
+      src: url('fonts/FixedsysExcelsiorIIIb.eot?#iefix') format('embedded-opentype'),
+           url('fonts/FixedsysExcelsiorIIIb.woff2') format('woff2'),
+           url('fonts/FixedsysExcelsiorIIIb.woff') format('woff'),
+           url('fonts/FixedsysExcelsiorIIIb.ttf') format('truetype'),
+           url('fonts/FixedsysExcelsiorIIIb.svg#FixedsysExcelsiorIIIb') format('svg');
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
     }
+
+    body {
+      background-color: black;
+      color: #ff6b00;
+      font-family: 'Fixedsys Excelsior 3.01', monospace;
+      line-height: 1.5;
+      margin: 0;
+    }
+	
     h1 {
       text-align: center;
+      color: #ff6b00;
     }
+
     .chat-container {
-      border: 1px solid #ccc;
-      padding: 10px;
+      max-width: 90%;
+      margin: 20px auto;
+      border: 1px solid #333;
       border-radius: 5px;
+      background-color: #111;
+      padding: 15px;
     }
+
     .messages {
-      max-height: 300px;
+      max-height: 400px;
       overflow-y: auto;
       margin-bottom: 10px;
       padding: 10px;
-      border: 1px solid #ddd;
-      background: #f9f9f9;
+      border: 1px solid #444;
+      background: #000;
+      white-space: pre-wrap;
+      color: #ff6b00;
     }
+
     .message {
       margin: 5px 0;
     }
-    .user-message {
-      text-align: right;
-    }
-    .bot-message {
-      text-align: left;
-    }
+
     input, button {
-      width: 100%;
-      padding: 10px;
-      margin-top: 5px;
+      display: none;
+    }
+
+    .prompt {
+      display: flex;
+      align-items: center;
+    }
+
+    .prompt > span {
+      color: #ff6b00;
+    }
+
+    .prompt > .cursor {
+      display: inline-block;
+      width: 10px;
+      height: 18px;
+      background: #ff6b00;
+      animation: blink 1s step-start infinite;
+    }
+
+    @keyframes blink {
+      50% {
+        background: transparent;
+      }
+    }
+
+    .bot-cursor {
+      display: inline-block;
+      width: 10px;
+      height: 18px;
+      background: #ff6b00;
+      animation: blink 1s step-start infinite;
+    }
+	
+	/* Custom scrollbar styling */
+	.messages::-webkit-scrollbar {
+    width: 8px; /* Scrollbar width */
+    background-color: black; /* Scrollbar background */
+    }
+
+    .messages::-webkit-scrollbar-thumb {
+    background-color: #ff6b00; /* Scrollbar thumb (draggable part) */
+    border-radius: 4px; /* Rounded edges for the scrollbar thumb */
+    }
+
+    .messages::-webkit-scrollbar-thumb:hover {
+    background-color: #ffa64d; /* Lighter orange on hover */
+    }
+
+    .messages::-webkit-scrollbar-track {
+    background-color: black; /* Scrollbar track background */
     }
   </style>
 </head>
 <body>
-  <h1>ChatGPT TTS Chatbot</h1>
+  <h1>SAMGPT</h1>
   <div class="chat-container">
     <div class="messages" id="messages"></div>
-    <input type="text" id="userInput" placeholder="Type your message here..." />
-    <button id="sendMessage">Send</button>
+    <div class="prompt">
+      <span>&gt; </span>
+      <span id="userInputDisplay"></span>
+      <span class="cursor" id="blinkingCursor"></span>
+    </div>
   </div>
 
   <script src="node_modules/sam-js/dist/samjs.js"></script>
@@ -59,26 +131,36 @@
     let speechQueue = [];
     let isProcessingQueue = false;
 
-    // Process speech queue one chunk at a time
-    const processSpeechQueue = async () => {
-      if (isProcessingQueue) return; // Prevent overlapping processing
-      isProcessingQueue = true;
+    const userInputDisplay = document.getElementById("userInputDisplay");
+    const messagesDiv = document.getElementById("messages");
+    const blinkingCursor = document.getElementById("blinkingCursor");
 
-      while (speechQueue.length > 0) {
-        const { chunk, addToChat } = speechQueue.shift();
+    // Auto-scroll function (scroll one line at a time)
+    const autoScroll = () => {
+      messagesDiv.scrollTop = messagesDiv.scrollHeight - messagesDiv.clientHeight;
+    };
 
-        // Add the chunk to the chat interface if required
-        if (addToChat) addMessage(chunk, false);
+    // Typing animation function
+    const typeText = (text, element, speed = 30) => {
+      return new Promise((resolve) => {
+        let i = 0;
+        const botCursor = document.createElement("span");
+        botCursor.className = "bot-cursor";
+        element.appendChild(botCursor);
 
-        console.log(`Speaking chunk: "${chunk}"`);
-        try {
-          await speakText(chunk); // Wait until current chunk is fully spoken
-        } catch (error) {
-          console.error("Error during speech:", error);
-        }
-      }
-
-      isProcessingQueue = false;
+        const typeInterval = setInterval(() => {
+          if (i < text.length) {
+            const char = text[i] === "\n" ? "<br>" : text[i] === " " ? "&nbsp;" : text[i];
+            botCursor.insertAdjacentHTML("beforebegin", char);
+            i++;
+            autoScroll();
+          } else {
+            clearInterval(typeInterval);
+            botCursor.remove();
+            resolve();
+          }
+        }, speed);
+      });
     };
 
     // Text-to-Speech function
@@ -86,26 +168,53 @@
       return new Promise((resolve, reject) => {
         const speech = new SamJs(opts).speak(text);
         speech
-          .then(() => resolve()) // Resolve after speaking completes
-          .catch((err) => {
-            console.error("Error speaking:", err);
-            reject(err);
-          });
+          .then(() => resolve())
+          .catch((err) => reject(err));
       });
+    };
+
+    // Function to type and speak text
+    const typeAndSpeak = async (message) => {
+      const chunks = splitIntoChunks(message);
+      for (const chunk of chunks) {
+        const botMessageDiv = document.createElement("div");
+        botMessageDiv.className = "message bot-message";
+        messagesDiv.appendChild(botMessageDiv);
+        autoScroll();
+
+        speechQueue.push({ chunk, element: botMessageDiv });
+      }
+      processSpeechQueue();
+    };
+
+    // Process speech queue
+    const processSpeechQueue = async () => {
+      if (isProcessingQueue) return;
+      isProcessingQueue = true;
+
+      while (speechQueue.length > 0) {
+        const { chunk, element } = speechQueue.shift();
+        try {
+          const typing = typeText(chunk, element);
+          const speaking = speakText(chunk);
+          await Promise.all([typing, speaking]);
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
+      isProcessingQueue = false;
+      showPrompt();
     };
 
     // Split text into clean chunks
     const splitIntoChunks = (text, chunkSize = 60) => {
-      // Replace line breaks with spaces and clean up the text
       text = text.replace(/\n/g, " ").trim();
-
       const chunks = [];
       let start = 0;
 
       while (start < text.length) {
         let end = start + chunkSize;
-
-        // Adjust end if it cuts in the middle of a word or punctuation
         if (end < text.length && /\w/.test(text[end])) {
           const lastValidSplit = Math.max(
             text.lastIndexOf(" ", end),
@@ -113,41 +222,25 @@
             text.lastIndexOf("!", end),
             text.lastIndexOf("?", end)
           );
-
-          if (lastValidSplit !== -1) {
-            end = lastValidSplit + 1; // Include trailing space or punctuation
-          }
+          if (lastValidSplit !== -1) end = lastValidSplit + 1;
         }
-
         const chunk = text.substring(start, end).trim();
         if (chunk) chunks.push(chunk);
-        start = end; // Move the start index
+        start = end;
       }
 
       return chunks;
     };
 
-    // Function to type and speak text
-    const typeAndSpeak = async (message) => {
-      const chunks = splitIntoChunks(message);
-
-      console.log("Message split into chunks:", chunks);
-
-      for (const chunk of chunks) {
-        speechQueue.push({ chunk, addToChat: true });
-      }
-
-      processSpeechQueue(); // Start processing the queue
+    // Show the prompt for user input
+    const showPrompt = () => {
+      blinkingCursor.style.display = "inline-block";
+      userInputDisplay.textContent = "";
     };
 
-    // Add a message to the chat display
-    const addMessage = (message, isUser) => {
-      const messagesDiv = document.getElementById("messages");
-      const messageDiv = document.createElement("div");
-      messageDiv.className = `message ${isUser ? "user-message" : "bot-message"}`;
-      messageDiv.innerText = message;
-      messagesDiv.appendChild(messageDiv);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    // Hide the prompt
+    const hidePrompt = () => {
+      blinkingCursor.style.display = "none";
     };
 
     // Get ChatGPT response
@@ -173,23 +266,44 @@
       return data.choices[0].message.content;
     };
 
-    // Event listener for sending a message
-    document.getElementById("sendMessage").addEventListener("click", async () => {
-      const userInput = document.getElementById("userInput");
-      const userMessage = userInput.value.trim();
+    // Capture user input and send the message
+document.addEventListener("keydown", async (e) => {
+  if (e.key === "Enter" && blinkingCursor.style.display !== "none") {
+    const userMessage = userInputDisplay.textContent.trim();
+    if (!userMessage) return;
 
-      if (!userMessage) return;
+    hidePrompt();
 
-      addMessage(userMessage, true);
-      userInput.value = "";
+    const userMessageDiv = document.createElement("div");
+    userMessageDiv.className = "message user-message";
+    userMessageDiv.textContent = `> ${userMessage}`;
+    messagesDiv.appendChild(userMessageDiv);
+    autoScroll();
 
-      try {
-        const botResponse = await getChatGPTResponse(userMessage);
-        await typeAndSpeak(botResponse); // Type and speak the response
-      } catch (error) {
-        addMessage("Error: " + error.message, false);
-      }
-    });
+    try {
+      const botResponse = await getChatGPTResponse(userMessage);
+      await typeAndSpeak(botResponse);
+    } catch (error) {
+      const errorMessageDiv = document.createElement("div");
+      errorMessageDiv.className = "message bot-message";
+      errorMessageDiv.textContent = `Error: ${error.message}`;
+      messagesDiv.appendChild(errorMessageDiv);
+      autoScroll();
+    }
+  } else if (blinkingCursor.style.display !== "none" && e.key.length === 1) {
+    const char = e.key === " " ? "&nbsp;" : e.key;
+    userInputDisplay.insertAdjacentHTML("beforeend", char);
+  } else if (e.key === "Backspace" && blinkingCursor.style.display !== "none") {
+    const content = userInputDisplay.innerHTML;
+    if (content.endsWith("&nbsp;")) {
+      userInputDisplay.innerHTML = content.slice(0, -6); // Remove `&nbsp;`
+    } else {
+      userInputDisplay.textContent = userInputDisplay.textContent.slice(0, -1); // Remove normal characters
+    }
+  }
+});
+
+    showPrompt();
   </script>
 </body>
 </html>
